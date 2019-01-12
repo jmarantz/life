@@ -12,12 +12,6 @@ running = True
 def quit():
     global running
     running = False
-    print("running = %s" % running)
-
-def isRunning():
-    global running
-    print("isRunning = %s" % running)
-    return running
 
 class myHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -34,9 +28,9 @@ class myHandler(http.server.BaseHTTPRequestHandler):
             q = urllib.parse.parse_qs(url.query)
             width = int(q['width'][0]) if 'width' in q else 100
             height = int(q['height'][0]) if 'height' in q else width
-            density = float(q['density'][0]) if 'density' in q else 0.1
-            print("width=%d height=%d density=%f" % (width, height, density))
-            board = Board(width, height, density)
+            board = Board(width, height)
+            if 'density' in q:
+                board.randomize(float(q['density'][0]))
             self.wfile.write(board.serialize().encode('ascii'))
         else:
             self.wfile.write(b'Commands:\n  /quit\n  /board?width=x&height=y&density=d\n')
@@ -44,15 +38,21 @@ class myHandler(http.server.BaseHTTPRequestHandler):
 class Board:
     """Represents a board in the Conway's Game of Life"""
 
-    def __init__(self, width, height, density):
+    def __init__(self, width, height):
         self.width = width
         self.height = height
+        self.setElements(lambda r, c : False)
+
+    def setElements(self, f):
         self.rows = []
-        for r in range(height):
+        for r in range(self.height):
             row = []
-            for c in range(width):
-                row.append(random.randint(0, 1000) < 1000 * density)
+            for c in range(self.width):
+                row.append(f(r, c))
             self.rows.append(row)
+
+    def randomize(self, density):
+        self.setElements(lambda r, c : random.randint(0, 1000) < 1000 * density)
 
     def serialize(self):
         out = ""
@@ -77,7 +77,7 @@ def main(argv):
     args = parser.parse_args()
     with socketserver.TCPServer(("", args.port), myHandler) as httpd:
         print("serving at port", args.port)
-        while isRunning():
+        while running:
             httpd.handle_request()
         print("loop exit")
         # httpd.server_close()
