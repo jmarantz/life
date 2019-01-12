@@ -5,6 +5,7 @@ import csv
 import http.server
 import socketserver
 import sys
+import urllib.parse
 
 running = True
 def quit():
@@ -25,10 +26,30 @@ class myHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         if self.path == '/quit':
             print("quitting")
-            self.wfile.write(b'quitting!')
+            self.wfile.write(b'quitting!\n')
             quit()
+        elif self.path.startswith("/board"):
+            url = urllib.parse.urlparse(self.path)
+            q = urllib.parse.parse_qs(url.query)
+            width = int(q['width'][0]) if 'width' in q else 100
+            height = int(q['height'][0]) if 'height' in q else width
+            density = float(q['density'][0]) if 'density' in q else 0.1
+            print("width=%d height=%d density=%f" % (width, height, density))
         else:
-            self.wfile.write(b'Hello, world!')
+            self.wfile.write(b'Hello, world!\n')
+
+class Board:
+    """Represents a board in the Conway's Game of Life"""
+
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+        self.rows = []
+        for r in range(height):
+            row = []
+            for c in range(width):
+                row.append(False)
+            self.rows.append(row)
 
 def main(argv):
     parser = argparse.ArgumentParser()
@@ -41,7 +62,7 @@ def main(argv):
         while isRunning():
             httpd.handle_request()
         print("loop exit")
-        httpd.server_close()
+        # httpd.server_close()
     print("exiting...")
 
 main(sys.argv)
