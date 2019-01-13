@@ -17,6 +17,8 @@ class Board {
     this.liveFillStyle_ = 'rgb(200, 0, 0)';
     /** @private {string} */
     this.deadFillStyle_ = 'rgb(220, 220, 220)';
+    /** @private {number} */
+    this.intervalMs_ = 20;
   }
 
   /**
@@ -30,7 +32,7 @@ class Board {
    */
   draw(rows) {
     if (rows.length != this.height_) {
-      console.log("incoming rows has wrong height " + rows.length + " should be " + this.height);
+      console.log("incoming rows has wrong height " + rows.length + " should be " + this.height_);
       return;
     }
 
@@ -72,16 +74,17 @@ class Board {
     window.fetch(step_api).then(response => response.json())
       .then(jsonResponse => {
         this.draw(jsonResponse);
-        window.setTimeout(() => this.step(), 1000);
+        window.setTimeout(() => this.step(), this.intervalMs_);
       });
   }
 
   load() {
-    const load_api = window.location.origin + '/board?width=20&height=20&density=0.35';
+    const load_api = window.location.origin + '/board?width=' + 
+          this.width_ + '&height=' + this.height_ + '&density=0.35';
     window.fetch(load_api).then(response => response.json())
       .then(jsonResponse => {
         this.draw(jsonResponse);
-        window.setTimeout(() => this.step(), 1000);
+        window.setTimeout(() => this.step(), this.intervalMs_);
       });
   }
 };
