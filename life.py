@@ -60,7 +60,7 @@ class Board:
         alive = 0
         for i in range(-1, 2):
             for j in range(-1, 2):
-                if (j != 0 and i != 0) and self.alive(r + i, c + j):
+                if (j != 0 or i != 0) and self.alive(r + i, c + j):
                     alive += 1
         # Return next state according to the game rules:
         #   exactly 3 neighbors: on,

@@ -18,7 +18,7 @@ class Board {
     /** @private {string} */
     this.deadFillStyle_ = 'rgb(220, 220, 220)';
     /** @private {number} */
-    this.intervalMs_ = 20;
+    this.intervalMs_ = 100;
   }
 
   /**
