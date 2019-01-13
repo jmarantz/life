@@ -34,18 +34,18 @@ class Board:
         self.setElements(lambda r, c : random.randint(0, 1000) < 1000 * density)
 
     def serialize(self):
-        out = ""
+        out = "["
+        prefix = "\n  "
         for r in range(self.height):
             # Densities in life are usually low, just print deltas of True
             row = self.rows[r]
-            prev_true = -1
-            true_deltas = []
+            live_columns = []
             for c in range(self.width):
                 if row[c]:
-                    true_deltas.append(c - prev_true)
-                    prev_true = c
-            out = out + ("%s" % true_deltas) + "\n"
-        return out
+                    live_columns.append(c);
+            out = out + prefix + ("%s" % live_columns)
+            prefix = ",\n  "
+        return out + "\n]\n"
 
     def alive(self, r, c):
         # For now we will not make the world toroidal. This will make
@@ -77,12 +77,12 @@ class myHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         global board
         print("path=%s" % self.path)
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
+        content_type = 'text/plain'
+        out = '???'
+        response = 200
         if self.path == '/quit':
             print("quitting")
-            self.wfile.write(b'quitting!\n')
+            out = 'quitting\n'
             quit()
         elif self.path.startswith("/board"):
             url = urllib.parse.urlparse(self.path)
@@ -92,12 +92,32 @@ class myHandler(http.server.BaseHTTPRequestHandler):
             board = Board(width, height)
             if 'density' in q:
                 board.randomize(float(q['density'][0]))
-            self.wfile.write(board.serialize().encode('ascii'))
+            out = board.serialize()
         elif self.path.startswith("/step"):
             board.step()
-            self.wfile.write(board.serialize().encode('ascii'))
+            out = board.serialize().encode('ascii')
+        elif self.path == "/" or self.path == "/help":
+            out = 'Commands:\n  /quit\n  /board?width=x&height=y&density=d\n'
         else:
-            self.wfile.write(b'Commands:\n  /quit\n  /board?width=x&height=y&density=d\n')
+            filename = self.path[1:]
+            try:
+                with open(filename) as f:
+                    out = f.read()
+                    if self.path.endswith(".js"):
+                        content_type = 'application/javascript'
+                    elif self.path.endswith('.html'):
+                        content_type = 'text/html'
+                    elif self.path.endswith('.css'):
+                        content_type = 'text/css'
+            except IOError:
+                content_type = 'text/plain'
+                out = 'Could not read file %s' % filename
+                response = 404
+        self.send_response(response)
+        self.send_header('Cache-Control', 'max-age=0')
+        self.send_header('Content-type', content_type)
+        self.end_headers()
+        self.wfile.write(out.encode('ascii'))
 
 def main(argv):
     random.seed(32)
@@ -107,12 +127,18 @@ def main(argv):
     parser.add_argument("--height", help="height", type=int)
     # parser.add_argument("--shards", help="shards", type=int, default=1)
     args = parser.parse_args()
-    with socketserver.TCPServer(("", args.port), myHandler) as httpd:
+    socketserver.TCPServer.allow_reuse_address=True
+    #with socketserver.TCPServer(("", args.port), myHandler) as httpd:
+    with http.server.ThreadingHTTPServer(("", args.port), myHandler) as httpd:
         print("serving at port", args.port)
-        while running:
-            httpd.handle_request()
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            pass
+#        while running:
+#            httpd.handle_request()
         print("loop exit")
-        # httpd.server_close()
+        httpd.server_close()
     print("exiting...")
 
 main(sys.argv)
