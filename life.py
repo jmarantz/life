@@ -95,7 +95,7 @@ class myHandler(http.server.BaseHTTPRequestHandler):
             out = board.serialize()
         elif self.path.startswith("/step"):
             board.step()
-            out = board.serialize().encode('ascii')
+            out = board.serialize()
         elif self.path == "/" or self.path == "/help":
             out = 'Commands:\n  /quit\n  /board?width=x&height=y&density=d\n'
         else:

@@ -66,4 +66,22 @@ class Board {
     }
     this.rows_ = rows;
   }
+
+  step() {
+    const step_api = window.location.origin + '/step';
+    window.fetch(step_api).then(response => response.json())
+      .then(jsonResponse => {
+        this.draw(jsonResponse);
+        window.setTimeout(() => this.step(), 1000);
+      });
+  }
+
+  load() {
+    const load_api = window.location.origin + '/board?width=20&height=20&density=0.35';
+    window.fetch(load_api).then(response => response.json())
+      .then(jsonResponse => {
+        this.draw(jsonResponse);
+        window.setTimeout(() => this.step(), 1000);
+      });
+  }
 };

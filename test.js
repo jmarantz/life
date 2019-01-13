@@ -179,11 +179,16 @@ const data = [
   ]
 ];
 
+/*
 let = index = 0;
 function next() {
   //debugger;
   board.draw(data[index]);
-  index = (index + 1) % data.length;
-  window.setTimeout(next, 1000);
+  ++index;
+  if (index < data.length) {
+    window.setTimeout(next, 1000);
+  }
 }
 window.setTimeout(next, 1000);
+*/
+board.load();
