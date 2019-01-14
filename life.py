@@ -48,12 +48,9 @@ class Board:
         return out + "\n]\n"
 
     def alive(self, r, c):
-        # For now we will not make the world toroidal. This will make
-        # it easier to reason about sharding the world.
-        if r == self.height:
-            return False
-        if c == self.width:
-            return False
+        # Toroidol world transform
+        r = (r + self.height) % self.height
+        c = (c + self.width) % self.width
         return self.rows[r][c]
 
     def nextState(self, r, c):
@@ -72,6 +69,25 @@ class Board:
         self.setElements(lambda r, c : self.nextState(r, c))
 
 board = Board(1, 1)
+
+class Shard:
+    def __init__(self, server):
+        this.server = server
+        this.http_client = http.client.HTTPConnection(this.server)
+
+    def makeBoard(width, height):
+        this.http_client.request("GET", "/board?width=%d&height=%d", width, height)
+        response = this.http_client.getresponse()
+        if response.status != 200:
+            raise RuntimeError('unexpected response from %s: %d', this.server, response.status)
+        return json.loads(response.read())
+
+    def step(north_row, east_col, south_row, west_col):
+        this.http_client.request("GET", "/board?width=%d&height=%d", width, height)
+        response = this.http_client.getresponse()
+        if response.status != 200:
+            raise RuntimeError('unexpected response from %s: %d', this.server, response.status)
+        return json.loads(response.read())
 
 class myHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -125,7 +141,7 @@ def main(argv):
     parser.add_argument("--port", help="http port", type=int, default=100)
     parser.add_argument("--width", help="width", type=int, default=100)
     parser.add_argument("--height", help="height", type=int)
-    # parser.add_argument("--shards", help="shards", type=int, default=1)
+    parser.add_argument("--shards", help="shards", nargs='+')
     args = parser.parse_args()
     socketserver.TCPServer.allow_reuse_address=True
     #with socketserver.TCPServer(("", args.port), myHandler) as httpd:
