@@ -2,11 +2,15 @@
 
 import argparse
 import csv
+import http.client
 import http.server
+import math
 import random
 import socketserver
 import sys
 import urllib.parse
+
+shards = None
 
 running = True
 def quit():
@@ -69,13 +73,19 @@ class Board:
         self.setElements(lambda r, c : self.nextState(r, c))
 
 board = Board(1, 1)
+def setBoard(new_board):
+    global board
+    board = new_board
 
-class Shard:
-    def __init__(self, server):
-        this.server = server
-        this.http_client = http.client.HTTPConnection(this.server)
+class Shard(Board):
+    def __init__(self, server, row, col, width, height):
+        Board.__init__(self, width, height)
+        self.server = server
+        self.http_client = http.client.HTTPConnection(self.server)
+        self.row = row
+        self.col = col
 
-    def makeBoard(width, height):
+    def randomized(width, height):
         this.http_client.request("GET", "/board?width=%d&height=%d", width, height)
         response = this.http_client.getresponse()
         if response.status != 200:
@@ -88,6 +98,46 @@ class Shard:
         if response.status != 200:
             raise RuntimeError('unexpected response from %s: %d', this.server, response.status)
         return json.loads(response.read())
+
+class ShardedBoard(Board):
+    def __init__(self, server, width, height, shards):
+        Board.__init__(self, width, height)
+        self.shard_rows = []
+        num_shards = len(args.shards)
+
+        # Figure out the width/height of each shard based on the overall board dimensions
+        # and the number of shards. For now, we require that the number of shards is
+        # a square, and the width/height of each shard is the same. This can be relaxed
+        # later.
+        sqrt = math.sqrt(num_shards)
+        if math.floor(sqrt) != sqrt:
+            raise RuntimeError('Expected number of shards to be perfect square: %d' % num_shards)
+
+        shard_width = args.width / sqrt
+        if math.floor(shard_width) != shard_width:
+            raise RuntimeError('Shard width is not integral: %f' % shard_width)
+        shard_width = int(shard_width)
+        shard_height = args.height / sqrt
+        if math.floor(shard_height) != shard_height:
+            raise RuntimeError('Shard height is not integral: %f' % shard_height)
+        shard_height = int(shard_height)
+
+        c = 0
+        r = 0
+        shard_row = []
+        for shard_server in args.shards:
+            shard_row.append(Shard(shard_server, c, r, shard_width, shard_height))
+            c += shard_width
+            r += shard_height
+            if c == args.width:
+                c = 0
+                r += 1
+                self.shard_rows.append(shard_row)
+                shard_row = []
+
+        # Sanity check; there should be no uneven shard rows after this.
+        if len(shard_row) != 0:
+            raise RuntimeError('Leftover shard row: %s' % row)
 
 class myHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -105,7 +155,11 @@ class myHandler(http.server.BaseHTTPRequestHandler):
             q = urllib.parse.parse_qs(url.query)
             width = int(q['width'][0]) if 'width' in q else 100
             height = int(q['height'][0]) if 'height' in q else width
-            board = Board(width, height)
+
+            if shards == None:
+                setBoard(Board(width, height))
+            else:
+                setBoard(ShardedBoard(width, height, arg.shards))
             if 'density' in q:
                 board.randomize(float(q['density'][0]))
             out = board.serialize()
@@ -143,16 +197,16 @@ def main(argv):
     parser.add_argument("--height", help="height", type=int)
     parser.add_argument("--shards", help="shards", nargs='+')
     args = parser.parse_args()
+    global shards
+    shards = args.shards
     socketserver.TCPServer.allow_reuse_address=True
-    #with socketserver.TCPServer(("", args.port), myHandler) as httpd:
+
     with http.server.ThreadingHTTPServer(("", args.port), myHandler) as httpd:
         print("serving at port", args.port)
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
             pass
-#        while running:
-#            httpd.handle_request()
         print("loop exit")
         httpd.server_close()
     print("exiting...")
