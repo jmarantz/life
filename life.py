@@ -1,4 +1,43 @@
 #!/usr/local/bin/python3
+#
+# Shardable game of life. Each Shard must have the same width and
+# height in cells, the width and height each must be >=3, though most
+# likely you'd want each shard to be 1000x1000 to make interesting.
+# The sharding is expressed in terms of XShards by YShards, and there
+# will be a total of (XShards * YShards) shards.
+#
+# Each shard communicates only with its neighbording shards. After
+# each evaluation, the border cell values are sent to the neighbors,
+# who will incorporate it into their next phase.
+#
+# A shard can compute time T+1 as soon all its neighboring
+# shards have sent their current-phase values for time T. There
+# are 8 neighboring shards: E, NE, N, NW, W, SW, S, SE. The diagonal
+# neigbors, NE, NW, SW, SE, all send only the value of 1 cell. The
+# N and S neighbords must send 'width' cells. The W and E neighbors
+# send 'height' cellsn
+#
+# After each evaluation, the each shard renders its portion of the
+# board into a pixel-map. A single rendering server is used to
+# aggregate the pixels into a single pixel-map, which can then be
+# rendered into as an SVG resource. JavaScript running in a browser
+# need only reload the SVG resource in a loop.
+#
+# With a shard per compute server, we can compute a board with many
+# cells per pixel. We can use colors and/or shading to encode many
+# cells into a single pixel. E.g. if we use gray for dead, and red for
+# live, we can represent 256 cells in a single pixel by rendering in
+# HLS (Hue, Ligthness, Saturation), by Hue constant, but varying
+# Lightness and Saturation so that completely dead cells have zero
+# saturation, and completely live cells are fully saturated. Experiments
+# will be needed to make this look good.
+#
+# The communication architecture could be done in a few ways:
+#   1. Each shard-serfver directly communicates directly with its
+#      neighboring shard-server
+#   2. The central server that aggregates the pixel images from each
+#      shard also coordinates the inter-shard communication.
+# Initially I will try #2.
 
 import argparse
 import csv
@@ -77,7 +116,8 @@ def setBoard(new_board):
     global board
     board = new_board
 
-class Shard(Board):
+# View of a shard of a board from a server's perspective.
+class ShardServer(Board):
     def __init__(self, server, row, col, width, height):
         Board.__init__(self, width, height)
         self.server = server
@@ -98,6 +138,27 @@ class Shard(Board):
         if response.status != 200:
             raise RuntimeError('unexpected response from %s: %d', this.server, response.status)
         return json.loads(response.read())
+
+# View of a shard from a client. Actually clients don't really care that much about
+# the the fact that they are running a small shard, except that they receive from the
+# server the adjacent rows and columns of values, and use them in lieu of the toroidal
+# transformation during isAlive.
+class ShardClient(Board):
+    def __init__(self, width, height):
+        Board.__init__(self, width, height)
+        self.north = []  # Column of true/false values including 
+        self.south = []
+        self.east = []
+        self.west = []
+
+    def alive(self, r, c):
+        # Toroidol world transform
+        #if r == -1:
+        #    if c == -1:
+        #        
+        r = (r + self.height) % self.height
+        c = (c + self.width) % self.width
+        return self.rows[r][c]
 
 class ShardedBoard(Board):
     def __init__(self, server, width, height, shards):
@@ -126,7 +187,7 @@ class ShardedBoard(Board):
         r = 0
         shard_row = []
         for shard_server in args.shards:
-            shard_row.append(Shard(shard_server, c, r, shard_width, shard_height))
+            shard_row.append(ShardServer(shard_server, c, r, shard_width, shard_height))
             c += shard_width
             r += shard_height
             if c == args.width:
