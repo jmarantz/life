@@ -250,6 +250,64 @@ class myHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(out.encode('ascii'))
 
+class Coordinator:
+    """Represents the coordinator for the game of life"""
+
+    def __init__(self, shard_width, shard_height, xshards, yshards):
+        self.shard_width = shard_width
+        self.shard_height = shard_height
+        self.xshards = xshards
+        self.yshards = yshards
+        self.http_client = http.client.HTTPConnection(self.server)
+        self.row_shards = []
+        for row in range(self.xshards):
+            col_shards = []
+            for col in range(self.yshards):
+                col_shards.append(ShardClient(shard_width, shard_height))
+            self.row_shards.append(col_shards)
+        self.pending = 0
+
+    def step(self):
+        self.pending = self.xshards * self.yshards
+        for row in range(self.xshards):
+            col_shards = self.row_shards[row]
+            for col in range(self.yshards):
+                shard = col_shards[col]
+                shard.step(lambda w, nw, n, ne, e, se, s, sw :
+                               self.shardStepComplete_(w, rw, n, ne, e, se, s, sw))
+
+    def shardStepComplete_(self):
+        self.recordNeighborValues(row, col, w, nw, n, ne, e, se, s, sw)
+        self.pending = self.pending - 1
+        if self.pending == 0:
+            self.sendNeighborValues()
+
+    def getShard(self, row, col):
+        rol = (row + self.yshards) % self.yshards
+        ccol = (cow + self.xshards) % self.xshards
+        return self.row_shards[row][col]
+
+    def recordNeighborValues(self, row, col, w, nw, n, ne, e, se, s, sw):
+        self.getShard(row, col - 1).east = w
+        self.getShard(row - 1, col - 1).se = nw
+        self.getShard(row - 1, col).s = n
+        self.getShard(row - 1, col + 1).sw = ne
+        self.getShard(row, col + 1).w = e
+        self.getShard(row + 1, col + 1).nw = se
+        self.getShard(row + 1, col).n = s
+        self.getShard(row + 1, col - 1).ne = sw
+
+#    def sendNeighborValues(self):
+#        pending = self.xshards * self.yshards
+#        for row in range(self.xshards):
+#            col_shards = self.row_shards[row]
+#            for col in range(self.yshards):
+#                shard = col_shards[col]
+#                shard.sendNeighborValues(lambda:
+#                                             pending = pending - 1
+#                                             if pending == 0:
+#                                               self.step())
+
 def main(argv):
     random.seed(32)
     parser = argparse.ArgumentParser()
