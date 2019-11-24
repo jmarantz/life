@@ -276,6 +276,7 @@ class Coordinator:
                 shard.step(lambda w, nw, n, ne, e, se, s, sw :
                                self.shardStepComplete_(w, rw, n, ne, e, se, s, sw))
 
+    # Called whenever a shard step is completed.
     def shardStepComplete_(self):
         self.recordNeighborValues(row, col, w, nw, n, ne, e, se, s, sw)
         self.pending = self.pending - 1
